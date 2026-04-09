@@ -73,11 +73,13 @@ export async function getProducts({
   sortKey = DEFAULT_SORT_KEY,
   reverse = false,
   query: searchQuery,
+  featuredFirst = false,
 }: {
   first?: number;
   sortKey?: ProductSortKey;
   reverse?: boolean;
   query?: string;
+  featuredFirst?: boolean;
 }): Promise<ShopifyProduct[]> {
   try {
     let query_builder = supabase
@@ -91,6 +93,11 @@ export async function getProducts({
 
     if (searchQuery) {
       query_builder = query_builder.or(`title.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%`);
+    }
+
+    // Sort by featured first, then by display_order
+    if (featuredFirst) {
+      query_builder = query_builder.order('featured', { ascending: false }).order('display_order', { ascending: true });
     }
 
     const { data, error } = await query_builder;

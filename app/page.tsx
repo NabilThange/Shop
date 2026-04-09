@@ -12,12 +12,9 @@ export default async function Home() {
   let featuredProducts: Product[] = [];
 
   try {
-    if (collections.length > 0) {
-      featuredProducts = await getCollectionProducts({ collection: collections[0].handle });
-    } else {
-      const allProducts = await getProducts({});
-      featuredProducts = allProducts.slice(0, 8);
-    }
+    // Get all products with featured ones first
+    const allProducts = await getProducts({ featuredFirst: true });
+    featuredProducts = allProducts.slice(0, 8);
   } catch (error) {
     console.error('Error fetching featured products:', error);
     featuredProducts = [];

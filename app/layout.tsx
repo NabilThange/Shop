@@ -2,17 +2,12 @@ import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { Toaster } from 'sonner';
-import { NuqsAdapter } from 'nuqs/adapters/next/app';
-import { CartProvider } from '@/components/cart/cart-context';
 import { DebugGrid } from '@/components/debug-grid';
 import { isDevelopment } from '@/lib/constants';
 import { getCollections } from '@/lib/shopify';
 import { Header } from '../components/layout/header';
-import dynamic from 'next/dynamic';
-import { V0Provider } from '../lib/context';
+import { Providers } from '@/components/providers';
 import { cn } from '../lib/utils';
-
-const V0Setup = dynamic(() => import('@/components/v0-setup'));
 
 const isV0 = process.env['VERCEL_URL']?.includes('vusercontent.net') ?? false;
 
@@ -45,19 +40,14 @@ export default async function RootLayout({
         className={cn(geistSans.variable, geistMono.variable, 'antialiased min-h-screen', { 'is-v0': isV0 })}
         suppressHydrationWarning
       >
-        <V0Provider isV0={isV0}>
-          <CartProvider>
-            <NuqsAdapter>
-              <main data-vaul-drawer-wrapper="true">
-                <Header collections={collections} />
-                {children}
-              </main>
-              {isDevelopment && <DebugGrid />}
-              <Toaster closeButton position="bottom-right" />
-            </NuqsAdapter>
-          </CartProvider>
-          {isV0 && <V0Setup />}
-        </V0Provider>
+        <Providers isV0={isV0}>
+          <main data-vaul-drawer-wrapper="true">
+            <Header collections={collections} />
+            {children}
+          </main>
+          {isDevelopment && <DebugGrid />}
+          <Toaster closeButton position="bottom-right" />
+        </Providers>
       </body>
     </html>
   );
