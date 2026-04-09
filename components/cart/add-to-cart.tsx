@@ -1,6 +1,6 @@
 'use client';
 
-import { PlusCircleIcon } from 'lucide-react';
+import { PlusCircleIcon, Minus, Plus } from 'lucide-react';
 import { Product, ProductVariant } from '@/lib/shopify/types';
 import { useMemo, useTransition } from 'react';
 import { useCart } from './cart-context';
@@ -44,7 +44,7 @@ export function AddToCartButton({
   icon = <PlusCircleIcon />,
   ...buttonProps
 }: AddToCartButtonProps) {
-  const { addItem } = useCart();
+  const { addItem, updateItem, cart } = useCart();
   const [isLoading, startTransition] = useTransition();
 
   // Resolve variant locally only for variantless products (purely synchronous)
@@ -54,6 +54,12 @@ export function AddToCartButton({
     if (product.variants.length === 1) return product.variants[0];
     return undefined;
   }, [selectedVariant, product]);
+
+  // Check if this variant is in the cart
+  const cartItem = useMemo(() => {
+    if (!resolvedVariant || !cart) return null;
+    return cart.lines.find(line => line.merchandise.id === resolvedVariant.id);
+  }, [cart, resolvedVariant]);
 
   const getButtonText = () => {
     if (!product.availableForSale) return 'Out Of Stock';
@@ -70,6 +76,47 @@ export function AddToCartButton({
     if (buttonSize === 'lg') return 'lg';
     return 'default';
   };
+
+  const handleQuantityChange = (newQuantity: number) => {
+    if (!cartItem || !resolvedVariant) return;
+    
+    startTransition(async () => {
+      updateItem(cartItem.id, resolvedVariant.id, newQuantity, newQuantity > cartItem.quantity ? 'plus' : 'minus');
+    });
+  };
+
+  // If item is in cart, show quantity controls
+  if (cartItem && !iconOnly) {
+    return (
+      <div className={className}>
+        <div className="flex items-center justify-between gap-3 w-full h-full rounded-md border border-input bg-background px-3">
+          <button
+            type="button"
+            onClick={() => handleQuantityChange(cartItem.quantity - 1)}
+            disabled={isLoading}
+            className="flex items-center justify-center p-2 hover:opacity-70 transition-opacity disabled:opacity-50"
+            aria-label="Decrease quantity"
+          >
+            <Minus className="h-5 w-5" />
+          </button>
+          
+          <span className="text-lg font-semibold min-w-[2ch] text-center">
+            {isLoading ? <Loader size="sm" /> : cartItem.quantity}
+          </span>
+          
+          <button
+            type="button"
+            onClick={() => handleQuantityChange(cartItem.quantity + 1)}
+            disabled={isLoading}
+            className="flex items-center justify-center p-2 hover:opacity-70 transition-opacity disabled:opacity-50"
+            aria-label="Increase quantity"
+          >
+            <Plus className="h-5 w-5" />
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <form

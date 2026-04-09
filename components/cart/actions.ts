@@ -4,6 +4,7 @@ import { TAGS } from '@/lib/constants';
 import { revalidateTag } from 'next/cache';
 import { cookies } from 'next/headers';
 import type { Cart, CartItem, ShopifyCart, ShopifyCartLine } from '@/lib/shopify/types';
+import { supabase } from '@/lib/supabase';
 
 // Local adapter utilities to return FE Cart (avoid cyclic deps)
 function adaptCartLine(shopifyLine: ShopifyCartLine): CartItem {
@@ -82,9 +83,26 @@ function adaptCart(shopifyCart: ShopifyCart | null): Cart | null {
 
 async function getOrCreateCartId(): Promise<string> {
   let cartId = (await cookies()).get('cartId')?.value;
-  if (!cartId) {
-    // Generate a simple mock cart ID
-    cartId = `cart_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  
+  // Validate that cartId is a valid UUID format
+  const isValidUUID = cartId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cartId);
+  
+  if (!cartId || !isValidUUID) {
+    // Create a new cart in the database
+    const { data, error } = await supabase
+      .from('carts')
+      .insert({})
+      .select('id')
+      .single();
+
+    if (error || !data) {
+      console.error('Error creating cart:', error);
+      // Fallback: generate a UUID-like ID
+      cartId = crypto.randomUUID();
+    } else {
+      cartId = data.id;
+    }
+
     (await cookies()).set('cartId', cartId, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -95,27 +113,68 @@ async function getOrCreateCartId(): Promise<string> {
   return cartId;
 }
 
-// Add item server action: returns mock Cart
+// Add item server action
 export async function addItem(variantId: string | undefined): Promise<Cart | null> {
   if (!variantId) return null;
+  
   try {
     const cartId = await getOrCreateCartId();
+
+    // Check if item already exists in cart
+    const { data: existingItem } = await supabase
+      .from('cart_items')
+      .select('id, quantity')
+      .eq('cart_id', cartId)
+      .eq('variant_id', variantId)
+      .single();
+
+    if (existingItem) {
+      // Update quantity
+      await supabase
+        .from('cart_items')
+        .update({ quantity: existingItem.quantity + 1 })
+        .eq('id', existingItem.id);
+    } else {
+      // Insert new item
+      await supabase
+        .from('cart_items')
+        .insert({
+          cart_id: cartId,
+          variant_id: variantId,
+          quantity: 1,
+        });
+    }
+
     revalidateTag(TAGS.cart);
-    return null; // Mock implementation - cart stored in context
+    return await getCart();
   } catch (error) {
     console.error('Error adding item to cart:', error);
     return null;
   }
 }
 
-// Update item server action (quantity 0 removes): returns mock Cart
+// Update item server action (quantity 0 removes)
 export async function updateItem({ lineId, quantity }: { lineId: string; quantity: number }): Promise<Cart | null> {
   try {
     const cartId = (await cookies()).get('cartId')?.value;
     if (!cartId) return null;
 
+    if (quantity === 0) {
+      // Remove item
+      await supabase
+        .from('cart_items')
+        .delete()
+        .eq('id', lineId);
+    } else {
+      // Update quantity
+      await supabase
+        .from('cart_items')
+        .update({ quantity })
+        .eq('id', lineId);
+    }
+
     revalidateTag(TAGS.cart);
-    return null; // Mock implementation - cart stored in context
+    return await getCart();
   } catch (error) {
     console.error('Error updating item:', error);
     return null;
@@ -124,16 +183,25 @@ export async function updateItem({ lineId, quantity }: { lineId: string; quantit
 
 export async function createCartAndSetCookie() {
   try {
-    const cartId = `cart_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const { data, error } = await supabase
+      .from('carts')
+      .insert({})
+      .select('id')
+      .single();
 
-    (await cookies()).set('cartId', cartId, {
+    if (error || !data) {
+      console.error('Error creating cart:', error);
+      return null;
+    }
+
+    (await cookies()).set('cartId', data.id, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 30, // 30 days
     });
 
-    return { id: cartId };
+    return { id: data.id };
   } catch (error) {
     console.error('Error creating cart:', error);
     return null;
@@ -147,10 +215,133 @@ export async function getCart(): Promise<Cart | null> {
     if (!cartId) {
       return null;
     }
-    // Mock implementation - return empty cart
-    return null;
+
+    // Validate UUID format
+    const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cartId);
+    if (!isValidUUID) {
+      console.error('Invalid cart ID format:', cartId);
+      // Clear invalid cookie
+      (await cookies()).delete('cartId');
+      return null;
+    }
+
+    // Fetch cart with items, variants, and products
+    const { data: cartData, error: cartError } = await supabase
+      .from('carts')
+      .select(`
+        id,
+        checkout_url,
+        cart_items (
+          id,
+          quantity,
+          variant_id,
+          variants (
+            id,
+            title,
+            price,
+            product_id,
+            products (
+              id,
+              title,
+              handle,
+              product_images (
+                image_url,
+                alt_text
+              )
+            )
+          )
+        )
+      `)
+      .eq('id', cartId)
+      .single();
+
+    if (cartError || !cartData) {
+      console.error('Error fetching cart:', cartError);
+      return null;
+    }
+
+    // Transform to Cart format
+    const lines: CartItem[] = (cartData.cart_items || []).map((item: any) => {
+      const variant = item.variants;
+      const product = variant?.products;
+      const firstImage = product?.product_images?.[0];
+
+      return {
+        id: item.id,
+        quantity: item.quantity,
+        cost: {
+          totalAmount: {
+            amount: (parseFloat(variant?.price || '0') * item.quantity).toString(),
+            currencyCode: 'USD',
+          },
+        },
+        merchandise: {
+          id: variant?.id || '',
+          title: variant?.title || '',
+          selectedOptions: [],
+          product: {
+            id: product?.id || '',
+            title: product?.title || '',
+            handle: product?.handle || '',
+            categoryId: undefined,
+            description: '',
+            descriptionHtml: '',
+            featuredImage: firstImage
+              ? {
+                  url: firstImage.image_url,
+                  altText: firstImage.alt_text || product?.title || '',
+                  height: 600,
+                  width: 600,
+                }
+              : { url: '', altText: '', height: 0, width: 0 },
+            currencyCode: 'USD',
+            priceRange: {
+              minVariantPrice: {
+                amount: variant?.price?.toString() || '0',
+                currencyCode: 'USD',
+              },
+              maxVariantPrice: {
+                amount: variant?.price?.toString() || '0',
+                currencyCode: 'USD',
+              },
+            },
+            compareAtPrice: undefined,
+            seo: { title: product?.title || '', description: '' },
+            options: [],
+            tags: [],
+            variants: [],
+            images: [],
+            availableForSale: true,
+          },
+        },
+      };
+    });
+
+    const subtotal = lines.reduce((sum, line) => sum + parseFloat(line.cost.totalAmount.amount), 0);
+
+    return {
+      id: cartData.id,
+      checkoutUrl: cartData.checkout_url || '/checkout',
+      cost: {
+        subtotalAmount: {
+          amount: subtotal.toString(),
+          currencyCode: 'USD',
+        },
+        totalAmount: {
+          amount: subtotal.toString(),
+          currencyCode: 'USD',
+        },
+        totalTaxAmount: {
+          amount: '0',
+          currencyCode: 'USD',
+        },
+      },
+      totalQuantity: lines.reduce((sum, line) => sum + line.quantity, 0),
+      lines,
+    };
   } catch (error) {
     console.error('Error fetching cart:', error);
     return null;
   }
 }
+

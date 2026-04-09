@@ -33,6 +33,7 @@ function transformProductFromDb(dbProduct: any): ShopifyProduct {
     descriptionHtml: dbProduct.description_html || dbProduct.description,
     handle: dbProduct.handle,
     productType: dbProduct.product_type || '',
+    collectionId: dbProduct.collection_id, // Add collection_id from database
     images: {
       edges: imageEdges
     },
@@ -62,6 +63,7 @@ function transformProductFromDb(dbProduct: any): ShopifyProduct {
         }
       }))
     },
+    specifications: dbProduct.specifications || {},
   };
 }
 
@@ -161,6 +163,41 @@ export async function getCollections(first = 10): Promise<ShopifyCollection[]> {
   } catch (err) {
     console.error('Error in getCollections:', err);
     return [];
+  }
+}
+
+// Get collection by ID (UUID)
+export async function getCollectionById(id: string): Promise<ShopifyCollection | null> {
+  try {
+    const { data, error } = await supabase
+      .from('collections')
+      .select('id, title, handle, description, image_url, image_alt_text')
+      .eq('id', id)
+      .single();
+
+    if (error || !data) {
+      console.error('Error fetching collection by ID:', error);
+      return null;
+    }
+
+    return {
+      id: data.id,
+      title: data.title,
+      handle: data.handle,
+      description: data.description,
+      image: data.image_url ? {
+        url: data.image_url,
+        altText: data.image_alt_text || data.title,
+        thumbhash: '',
+      } : {
+        url: '',
+        altText: '',
+        thumbhash: '',
+      },
+    };
+  } catch (err) {
+    console.error('Error in getCollectionById:', err);
+    return null;
   }
 }
 

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
-import { getCollection, getProduct, getProducts } from '@/lib/shopify';
+import { getCollection, getCollectionById, getProduct, getProducts } from '@/lib/shopify';
 import { HIDDEN_PRODUCT_TAG } from '@/lib/constants';
 import {
   Breadcrumb,
@@ -23,6 +23,7 @@ import { PageLayout } from '@/components/layout/page-layout';
 import { VariantSelectorSlots } from './components/variant-selector-slots';
 import { MobileGallerySlider } from './components/mobile-gallery-slider';
 import { DesktopGallery } from './components/desktop-gallery';
+import { ProductSpecifications } from './components/product-specifications';
 
 // Generate static params for all products at build time
 export async function generateStaticParams() {
@@ -82,7 +83,7 @@ export default async function ProductPage(props: { params: Promise<{ handle: str
 
   if (!product) return notFound();
 
-  const collection = product.categoryId ? await getCollection(product.categoryId) : null;
+  const collection = product.categoryId ? await getCollectionById(product.categoryId) : null;
 
   const productJsonLd = {
     '@context': 'https://schema.org',
@@ -203,6 +204,13 @@ export default async function ProductPage(props: { params: Promise<{ handle: str
             className="col-span-full mb-auto opacity-70 max-md:order-3 max-md:my-6"
             html={product.descriptionHtml}
           />
+
+          {/* Product Specifications */}
+          {product.specifications && Object.keys(product.specifications).length > 0 && (
+            <div className="col-span-full max-md:order-4 max-md:mb-6">
+              <ProductSpecifications specifications={product.specifications} />
+            </div>
+          )}
 
           <SidebarLinks className="flex-col-reverse max-md:hidden py-sides w-full max-w-[408px] pr-sides max-md:pr-0 max-md:py-0" />
         </div>

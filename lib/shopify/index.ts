@@ -5,6 +5,7 @@ import {
   getProducts as getShopifyProducts,
   getCollectionProducts as getShopifyCollectionProducts,
   getProduct as getShopifyProduct,
+  getCollectionById as getShopifyCollectionById,
 } from './shopify';
 import { thumbhashToDataURL } from './utils';
 import type {
@@ -93,7 +94,7 @@ function adaptShopifyProduct(shopifyProduct: ShopifyProduct): Product {
   return {
     ...shopifyProduct,
     description,
-    categoryId: shopifyProduct.productType || shopifyProduct.category?.name,
+    categoryId: shopifyProduct.collectionId || shopifyProduct.productType || shopifyProduct.category?.name,
     tags: [],
     availableForSale: true,
     currencyCode: shopifyProduct.priceRange?.minVariantPrice?.currencyCode || 'USD',
@@ -130,6 +131,7 @@ function adaptShopifyProduct(shopifyProduct: ShopifyProduct): Product {
       })) || [],
     options: transformShopifyOptions(shopifyProduct.options || []),
     variants: transformShopifyVariants(shopifyProduct.variants),
+    specifications: shopifyProduct.specifications,
   };
 }
 
@@ -161,6 +163,20 @@ export async function getCollection(handle: string): Promise<Collection | null> 
     return collection ? adaptShopifyCollection(collection) : null;
   } catch (error) {
     console.error('Error fetching collection:', error);
+    return null;
+  }
+}
+
+export async function getCollectionById(id: string): Promise<Collection | null> {
+  'use cache';
+  cacheTag(TAGS.collections);
+  cacheLife('minutes');
+
+  try {
+    const collection = await getShopifyCollectionById(id);
+    return collection ? adaptShopifyCollection(collection) : null;
+  } catch (error) {
+    console.error('Error fetching collection by ID:', error);
     return null;
   }
 }

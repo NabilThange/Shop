@@ -5,6 +5,7 @@ export interface ShopifyProduct {
   descriptionHtml: string;
   handle: string;
   productType: string; // For category-like filtering (available in tokenless)
+  collectionId?: string; // UUID of the collection this product belongs to
   category?: {
     id: string;
     name: string;
@@ -52,6 +53,7 @@ export interface ShopifyProduct {
       };
     }>;
   };
+  specifications?: Record<string, string>;
 }
 
 export interface ShopifyCollection {
@@ -151,6 +153,7 @@ export type Product = {
   variants: ProductVariant[];
   images: Image[];
   availableForSale: boolean;
+  specifications?: Record<string, string>;
 };
 
 export type ProductSortKey =

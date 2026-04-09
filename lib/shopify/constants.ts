@@ -1,6 +1,6 @@
 // Store catalog constants
 export const storeCatalog = {
-  ids: 'lamps,miscellaneous,pillows,rugs,seats,featured,mens,womens,asdfasdf,top-seller',
+  ids: 'smartphones,laptops,smart-gadgets,audio,accessories',
   rootCategoryId: '', // Empty string means show all products
 };
 
