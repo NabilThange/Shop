@@ -188,16 +188,26 @@ export function AddToCart({
   const searchParams = useSearchParams();
 
   const hasNoVariants = variants.length === 0;
-  const defaultVariantId = variants.length === 1 ? variants[0]?.id : undefined;
-  const selectedVariantId = selectedVariant?.id || defaultVariantId;
-  const isTargetingProduct =
-    pathname.handle === product.handle || searchParams.get('pid') === getShopifyProductId(product.id);
+  const hasSingleVariant = variants.length === 1;
+  const isProductPage = pathname.handle === product.handle;
+  const isTargetingThisProduct = searchParams.get('pid') === getShopifyProductId(product.id);
 
   const resolvedVariant = useMemo(() => {
+    // No variants - create base variant
     if (hasNoVariants) return getBaseProductVariant(product);
-    if (!isTargetingProduct && !defaultVariantId) return undefined;
-    return variants.find(variant => variant.id === selectedVariantId);
-  }, [hasNoVariants, product, isTargetingProduct, defaultVariantId, variants, selectedVariantId]);
+    
+    // Single variant - always use it
+    if (hasSingleVariant) return variants[0];
+    
+    // On product page - use selected variant from URL params
+    if (isProductPage) return selectedVariant || undefined;
+    
+    // On shop page targeting this product - use selected variant
+    if (isTargetingThisProduct && selectedVariant) return selectedVariant;
+    
+    // On shop page not targeting this product - undefined (show "Select one")
+    return undefined;
+  }, [hasNoVariants, hasSingleVariant, product, isProductPage, isTargetingThisProduct, selectedVariant, variants]);
 
   return (
     <AddToCartButton

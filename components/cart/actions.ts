@@ -113,72 +113,88 @@ async function getOrCreateCartId(): Promise<string> {
   return cartId;
 }
 
-// Add item server action
+// Add item server action with retry logic
 export async function addItem(variantId: string | undefined): Promise<Cart | null> {
   if (!variantId) return null;
   
-  try {
-    const cartId = await getOrCreateCartId();
+  const maxRetries = 2;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const cartId = await getOrCreateCartId();
 
-    // Check if item already exists in cart
-    const { data: existingItem } = await supabase
-      .from('cart_items')
-      .select('id, quantity')
-      .eq('cart_id', cartId)
-      .eq('variant_id', variantId)
-      .single();
+      // Check if item already exists in cart
+      const { data: existingItem } = await supabase
+        .from('cart_items')
+        .select('id, quantity')
+        .eq('cart_id', cartId)
+        .eq('variant_id', variantId)
+        .single();
 
-    if (existingItem) {
-      // Update quantity
-      await supabase
-        .from('cart_items')
-        .update({ quantity: existingItem.quantity + 1 })
-        .eq('id', existingItem.id);
-    } else {
-      // Insert new item
-      await supabase
-        .from('cart_items')
-        .insert({
-          cart_id: cartId,
-          variant_id: variantId,
-          quantity: 1,
-        });
+      if (existingItem) {
+        // Update quantity
+        await supabase
+          .from('cart_items')
+          .update({ quantity: existingItem.quantity + 1 })
+          .eq('id', existingItem.id);
+      } else {
+        // Insert new item
+        await supabase
+          .from('cart_items')
+          .insert({
+            cart_id: cartId,
+            variant_id: variantId,
+            quantity: 1,
+          });
+      }
+
+      revalidateTag(TAGS.cart);
+      return await getCart();
+    } catch (error) {
+      if (attempt === maxRetries) {
+        console.error('Error adding item to cart after retries:', error);
+        return null;
+      }
+      // Exponential backoff before retry
+      await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 100));
     }
-
-    revalidateTag(TAGS.cart);
-    return await getCart();
-  } catch (error) {
-    console.error('Error adding item to cart:', error);
-    return null;
   }
+  return null;
 }
 
-// Update item server action (quantity 0 removes)
+// Update item server action (quantity 0 removes) with retry logic
 export async function updateItem({ lineId, quantity }: { lineId: string; quantity: number }): Promise<Cart | null> {
-  try {
-    const cartId = (await cookies()).get('cartId')?.value;
-    if (!cartId) return null;
+  const maxRetries = 2;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const cartId = (await cookies()).get('cartId')?.value;
+      if (!cartId) return null;
 
-    if (quantity === 0) {
-      // Remove item
-      await supabase
-        .from('cart_items')
-        .delete()
-        .eq('id', lineId);
-    } else {
-      // Update quantity
-      await supabase
-        .from('cart_items')
-        .update({ quantity })
-        .eq('id', lineId);
+      if (quantity === 0) {
+        // Remove item
+        await supabase
+          .from('cart_items')
+          .delete()
+          .eq('id', lineId);
+      } else {
+        // Update quantity
+        await supabase
+          .from('cart_items')
+          .update({ quantity })
+          .eq('id', lineId);
+      }
+
+      revalidateTag(TAGS.cart);
+      return await getCart();
+    } catch (error) {
+      if (attempt === maxRetries) {
+        console.error('Error updating item after retries:', error);
+        return null;
+      }
+      // Exponential backoff before retry
+      await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 100));
     }
-
-    revalidateTag(TAGS.cart);
-    return await getCart();
-  } catch (error) {
-    console.error('Error updating item:', error);
-    return null;
   }
+  return null;
 }
 
 export async function createCartAndSetCookie() {

@@ -185,13 +185,30 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  // Sync cart when user returns to tab
+  useEffect(() => {
+    const handleFocus = () => {
+      CartActions.getCart().then(cart => {
+        if (cart) setCart(cart);
+      });
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, []);
+
   const update = useCallback(
     async (lineId: string, merchandiseId: string, nextQuantity: number) => {
       startTransition(() => {
         updateOptimisticCart({ type: 'UPDATE_ITEM', payload: { merchandiseId, nextQuantity } });
       });
       const fresh = await CartActions.updateItem({ lineId, quantity: nextQuantity });
-      if (fresh) setCart(fresh);
+      if (fresh) {
+        setCart(fresh);
+      } else {
+        // Preserve optimistic state if server fails
+        console.error('Failed to update item quantity, keeping optimistic state');
+      }
     },
     [updateOptimisticCart]
   );
@@ -203,7 +220,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         updateOptimisticCart({ type: 'ADD_ITEM', payload: { variant, product, previousQuantity } });
       });
       const fresh = await CartActions.addItem(variant.id);
-      if (fresh) setCart(fresh);
+      if (fresh) {
+        setCart(fresh);
+      } else {
+        // Preserve optimistic state if server fails
+        console.error('Failed to add item to cart, keeping optimistic state');
+      }
     },
     [updateOptimisticCart, optimisticCart]
   );
