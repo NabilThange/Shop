@@ -16,7 +16,7 @@ export function DesktopFilters({ collections, className }: { collections: Collec
   const filterCount = useFilterCount();
 
   return (
-    <aside className={cn('grid sticky top-0 grid-cols-3 h-screen min-h-max pl-sides pt-top-spacing', className)}>
+    <aside className={cn('grid sticky top-0 grid-cols-3 pl-sides pt-top-spacing', className)}>
       <div className="flex flex-col col-span-3 xl:col-span-2 gap-4">
         <div className="flex justify-between items-baseline pl-2 -mb-2">
           <h2 className="text-2xl font-semibold">

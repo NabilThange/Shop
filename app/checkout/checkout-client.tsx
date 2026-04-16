@@ -269,13 +269,32 @@ function StripeModal({
 // ─── GPay Mock ───────────────────────────────────────────────────────────────
 
 function GPayModal({ total, onSuccess, onClose }: { total: number; onSuccess: () => void; onClose: () => void }) {
-  const [phase, setPhase] = useState<'idle' | 'auth' | 'done'>('idle');
+  const [phase, setPhase] = useState<'idle' | 'auth' | 'qr' | 'done'>('idle');
+  const [countdown, setCountdown] = useState(60);
+
+  useEffect(() => {
+    if (phase === 'qr') {
+      const interval = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            setPhase('done');
+            setTimeout(onSuccess, 2000);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      return () => clearInterval(interval);
+    }
+  }, [phase, onSuccess]);
 
   const handlePay = () => {
     setPhase('auth');
     setTimeout(() => { 
-      setPhase('done'); 
-      setTimeout(onSuccess, 10000); // Changed from 1000ms to 10000ms (10 seconds)
+      setPhase('qr');
+      setCountdown(60);
     }, 2200);
   };
 
@@ -321,6 +340,38 @@ function GPayModal({ total, onSuccess, onClose }: { total: number; onSuccess: ()
             <div className="text-center">
               <p className="font-semibold text-sm">Authenticating…</p>
               <p className="text-xs text-neutral-500 mt-1">Confirming with Google Pay</p>
+            </div>
+          </div>
+        )}
+
+        {phase === 'qr' && (
+          <div className="p-6 flex flex-col items-center gap-5">
+            <div className="flex items-center gap-1 mt-2">
+              <span className="text-2xl font-medium text-[#4285F4]">G</span>
+              <span className="text-2xl font-medium text-[#EA4335]">o</span>
+              <span className="text-2xl font-medium text-[#FBBC05]">o</span>
+              <span className="text-2xl font-medium text-[#4285F4]">g</span>
+              <span className="text-2xl font-medium text-[#34A853]">l</span>
+              <span className="text-2xl font-medium text-[#EA4335]">e</span>
+              <span className="ml-2 text-2xl font-medium text-neutral-800">Pay</span>
+            </div>
+            <p className="text-sm text-neutral-600 text-center font-medium">Scan QR Code to Complete Payment</p>
+            <div className="relative w-64 h-64 rounded-xl overflow-hidden border-2 border-neutral-200 bg-white">
+              <Image 
+                src="/qr-code.png" 
+                alt="Google Pay QR Code" 
+                fill 
+                className="object-contain p-2"
+                priority
+              />
+            </div>
+            <div className="flex flex-col items-center gap-2">
+              <div className="text-3xl font-bold text-[#4285F4]">{countdown}s</div>
+              <p className="text-xs text-neutral-500">Time remaining to scan</p>
+            </div>
+            <div className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 flex justify-between items-center">
+              <span className="text-sm text-neutral-600">Total</span>
+              <span className="text-sm font-bold">{formatPrice(total, 'USD')}</span>
             </div>
           </div>
         )}

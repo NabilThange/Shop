@@ -30,7 +30,7 @@ export const ProductCard = ({ product }: { product: Product }) => {
 
       {/* Interactive Overlay */}
       <div className="absolute inset-0 p-2 w-full pointer-events-none">
-        <div className="flex gap-6 justify-between items-baseline px-3 py-1 w-full font-semibold transition-all duration-300 translate-y-0 max-md:hidden group-hover:opacity-0 group-focus-visible:opacity-0 group-hover:-translate-y-full group-focus-visible:-translate-y-full">
+        <div className="flex gap-6 justify-between items-baseline px-3 py-1 w-full font-semibold transition-all duration-300 translate-y-0 max-md:hidden group-hover:opacity-0 group-focus-visible:opacity-0 group-hover:-translate-y-full group-focus-visible:-translate-y-full backdrop-blur-sm bg-background/50 rounded-md">
           <p className="text-sm uppercase 2xl:text-base text-balance">{product.title}</p>
           <div className="flex gap-2 items-center text-sm uppercase 2xl:text-base">
             {formatPrice(product.priceRange.minVariantPrice.amount, product.priceRange.minVariantPrice.currencyCode)}

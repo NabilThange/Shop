@@ -21,7 +21,7 @@ export default async function ShopLayout({ children }: { children: React.ReactNo
           <Suspense fallback={null}>
             <MobileFilters collections={collections} />
           </Suspense>
-          <div className="col-span-9 flex flex-col h-full md:pt-top-spacing">
+          <div className="col-span-9 flex flex-col md:pt-top-spacing">
             <Suspense fallback={null}>{children}</Suspense>
           </div>
         </div>
