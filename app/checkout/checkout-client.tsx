@@ -270,7 +270,7 @@ function StripeModal({
 
 function GPayModal({ total, onSuccess, onClose }: { total: number; onSuccess: () => void; onClose: () => void }) {
   const [phase, setPhase] = useState<'idle' | 'auth' | 'qr' | 'done'>('idle');
-  const [countdown, setCountdown] = useState(60);
+  const [countdown, setCountdown] = useState(30);
 
   useEffect(() => {
     if (phase === 'qr') {
@@ -294,7 +294,7 @@ function GPayModal({ total, onSuccess, onClose }: { total: number; onSuccess: ()
     setPhase('auth');
     setTimeout(() => { 
       setPhase('qr');
-      setCountdown(60);
+      setCountdown(30);
     }, 2200);
   };
 
